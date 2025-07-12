@@ -42,11 +42,15 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            echo "DB_URL=${{ secrets.DB_URL }}" > /home/ubuntu/.env
+            echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> /home/ubuntu/.env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> /home/ubuntu/.env
+            
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker pull kjunh972/dasom_memoreal:latest
             docker stop dasom_memoreal || true
             docker rm dasom_memoreal || true
-            docker run -d --name dasom_memoreal -p 8080:8080 kjunh972/dasom_memoreal:latest
+            docker run -d --name dasom_memoreal -p 8080:8080 --env-file /home/ubuntu/.env kjunh972/dasom_memoreal:latest
             docker image prune -af
 
       - name: Notify Discord (배포 성공)
