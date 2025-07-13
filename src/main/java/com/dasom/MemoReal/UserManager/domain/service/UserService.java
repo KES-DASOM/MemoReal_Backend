@@ -50,8 +50,8 @@ public class UserService {
     }
 
     @Transactional
-    public User updateUserInfoByMap(String username, Map<String, Object> updates) {
-        User user = repository.findByUsername(username)
+    public User updateUserInfoByMap(String email, Map<String, Object> updates) {
+        User user = repository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다."));
 
         for (Map.Entry<String, Object> entry : updates.entrySet()) {

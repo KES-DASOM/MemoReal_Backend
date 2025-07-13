@@ -139,12 +139,12 @@ class UserServiceTest {
             System.out.println("──────────── username 수정 테스트 시작 ────────────");
 
             User user = new User("user1", "user@example.com", "pass");
-            when(repository.findByUsername("user1")).thenReturn(Optional.of(user));
+            when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
             when(repository.save(any(User.class))).thenAnswer(i -> i.getArguments()[0]);
 
             Map<String, Object> updates = Map.of("username", "newUser");
 
-            User result = userService.updateUserInfoByMap("user1", updates);
+            User result = userService.updateUserInfoByMap("user@example.com", updates);
 
             System.out.println("✅ username 수정 성공 - username: " + result.getUsername());
 
@@ -157,11 +157,11 @@ class UserServiceTest {
             System.out.println("──────────── email 수정 시도 테스트 시작 ────────────");
 
             User user = new User("user1", "user@example.com", "pass");
-            when(repository.findByUsername("user1")).thenReturn(Optional.of(user));
+            when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
 
             Map<String, Object> updates = Map.of("email", "new@example.com");
 
-            assertThatThrownBy(() -> userService.updateUserInfoByMap("user1", updates))
+            assertThatThrownBy(() -> userService.updateUserInfoByMap("user@example.com", updates))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("이메일은 수정할 수 없습니다.")
                     .satisfies(e -> {
@@ -176,13 +176,13 @@ class UserServiceTest {
             System.out.println("──────────── password 수정 테스트 시작 ────────────");
 
             User user = new User("user1", "user@example.com", "oldpass");
-            when(repository.findByUsername("user1")).thenReturn(Optional.of(user));
+            when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
             when(passwordEncoder.encode("newpass")).thenReturn("encoded_newpass");
             when(repository.save(any(User.class))).thenAnswer(i -> i.getArguments()[0]);
 
             Map<String, Object> updates = Map.of("password", "newpass");
 
-            User result = userService.updateUserInfoByMap("user1", updates);
+            User result = userService.updateUserInfoByMap("user@example.com", updates);
 
             System.out.println("✅ password 수정 성공 - password: " + result.getPassword());
 
@@ -195,11 +195,11 @@ class UserServiceTest {
             System.out.println("──────────── 허용되지 않은 필드 수정 테스트 시작 ────────────");
 
             User user = new User("user1", "user@example.com", "pass");
-            when(repository.findByUsername("user1")).thenReturn(Optional.of(user));
+            when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
 
             Map<String, Object> updates = Map.of("role", "admin");
 
-            assertThatThrownBy(() -> userService.updateUserInfoByMap("user1", updates))
+            assertThatThrownBy(() -> userService.updateUserInfoByMap("user@example.com", updates))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("수정할 수 없는 필드: role")
                     .satisfies(e -> {
@@ -213,11 +213,11 @@ class UserServiceTest {
         void update_userNotFound() {
             System.out.println("──────────── 사용자 없음 테스트 시작 ────────────");
 
-            when(repository.findByUsername("unknown")).thenReturn(Optional.empty());
+            when(repository.findByEmail("unknown@example.com")).thenReturn(Optional.empty());
 
             Map<String, Object> updates = Map.of("intro", "intro");
 
-            assertThatThrownBy(() -> userService.updateUserInfoByMap("unknown", updates))
+            assertThatThrownBy(() -> userService.updateUserInfoByMap("unknown@example.com", updates))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("사용자를 찾을 수 없습니다.")
                     .satisfies(e -> {
@@ -226,4 +226,5 @@ class UserServiceTest {
                     });
         }
     }
+
 }
