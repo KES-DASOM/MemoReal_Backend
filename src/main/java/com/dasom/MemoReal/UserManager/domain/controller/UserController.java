@@ -28,7 +28,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public CommonResponse<?> login(@RequestBody Login.Request request) {
+    public CommonResponse<?> login(@RequestBody LoginDTO.Request request) {
         try {
             User user = userService.login(request.getEmail(), request.getPassword());
 
@@ -37,7 +37,7 @@ public class UserController {
             }
 
             String token = JwtUtil.generateToken(user.getUsername());
-            Login.Response response = new Login.Response(token);
+            LoginDTO.Response response = new LoginDTO.Response(token);
 
             return new CommonResponse<>(false, response);
 
