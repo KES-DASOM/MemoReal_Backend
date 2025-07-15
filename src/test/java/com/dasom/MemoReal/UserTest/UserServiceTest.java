@@ -113,20 +113,39 @@ class UserServiceTest {
         }
 
         @Test
-        @DisplayName("이메일/비밀번호 불일치")
-        void login_invalid() {
-            System.out.println("──────────── 로그인 실패 테스트 시작 ────────────");
+        @DisplayName("이메일이 존재하지 않음")
+        void login_with_nonexistent_email() {
+            System.out.println("──────────── 로그인 실패 테스트 (이메일 없음) 시작 ────────────");
 
+            // given
+            when(repository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> userService.login("nonexistent@example.com", "any_password"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("이메일이 존재하지 않습니다.");
+
+            System.out.println("❌ 로그인 실패 - 이메일 없음으로 예외 발생");
+        }
+
+        @Test
+        @DisplayName("비밀번호가 일치하지 않음")
+        void login_with_wrong_password() {
+            System.out.println("──────────── 로그인 실패 테스트 (비밀번호 불일치) 시작 ────────────");
+
+            // given
             User user = new User("user1", "user@example.com", "encoded_pass");
             when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
             when(passwordEncoder.matches("wrongpass", "encoded_pass")).thenReturn(false);
 
-            User result = userService.login("user@example.com", "wrongpass");
+            // when & then
+            assertThatThrownBy(() -> userService.login("user@example.com", "wrongpass"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("비밀번호가 일치하지 않습니다.");
 
-            System.out.println("❌ 로그인 실패 - 유저 없음 (결과가 null)");
-
-            assertThat(result).isNull();
+            System.out.println("❌ 로그인 실패 - 비밀번호 불일치로 예외 발생");
         }
+
     }
 
     @Nested
