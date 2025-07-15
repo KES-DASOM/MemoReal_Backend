@@ -28,7 +28,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public CommonResponse<?> login(@RequestBody LoginRequest request) {
+    public CommonResponse<?> login(@RequestBody Login.Request request) {
         try {
             User user = userService.login(request.getEmail(), request.getPassword());
 
@@ -37,7 +37,7 @@ public class UserController {
             }
 
             String token = JwtUtil.generateToken(user.getUsername());
-            LoginResponse response = new LoginResponse(token);
+            Login.Response response = new Login.Response(token);
 
             return new CommonResponse<>(false, response);
 
@@ -51,9 +51,9 @@ public class UserController {
             @RequestBody Map<String, Object> updates) {
         try {
             String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
-            String username = JwtUtil.extractUsername(token);
+            String email = JwtUtil.extractEmail(token);
 
-            User updatedUser = userService.updateUserInfoByMap(username, updates);
+            User updatedUser = userService.updateUserInfoByMap(email, updates);
 
             return new CommonResponse<>(false, updatedUser);
         } catch (IllegalStateException e) {
