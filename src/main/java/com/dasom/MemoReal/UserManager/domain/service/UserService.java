@@ -33,13 +33,7 @@ public class UserService {
         // 비밀번호 암호화
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
-        User user = new User(
-                request.getUsername(),
-                request.getEmail(),
-                encodedPassword
-        );
-
-        return repository.save(user);
+        return repository.save(request.toEntity(encodedPassword));
     }
 
     @Transactional(readOnly = true)
