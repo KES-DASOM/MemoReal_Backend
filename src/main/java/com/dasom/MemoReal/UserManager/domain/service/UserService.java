@@ -44,9 +44,14 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public User login(String email, String rawPassword) {
-        return repository.findByEmail(email)
-                .filter(user -> passwordEncoder.matches(rawPassword, user.getPassword()))
-                .orElse(null);
+        User user = repository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("이메일이 존재하지 않습니다."));
+
+        if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
+            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+        }
+
+        return user;
     }
 
     @Transactional
