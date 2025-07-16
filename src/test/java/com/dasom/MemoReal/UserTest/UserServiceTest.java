@@ -1,9 +1,9 @@
 package com.dasom.MemoReal.UserTest;
 
-import com.dasom.MemoReal.UserManager.domain.dto.UserRegisterRequest;
-import com.dasom.MemoReal.UserManager.domain.entity.User;
-import com.dasom.MemoReal.UserManager.domain.repository.UserRepository;
-import com.dasom.MemoReal.UserManager.domain.service.UserService;
+import com.dasom.MemoReal.domain.UserManager.dto.UserRegisterRequest;
+import com.dasom.MemoReal.domain.UserManager.entity.User;
+import com.dasom.MemoReal.domain.UserManager.repository.UserRepository;
+import com.dasom.MemoReal.domain.UserManager.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

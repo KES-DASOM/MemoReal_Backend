@@ -1,4 +1,4 @@
-package com.dasom.MemoReal.UserManager.domain.dto;
+package com.dasom.MemoReal.domain.UserManager.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
