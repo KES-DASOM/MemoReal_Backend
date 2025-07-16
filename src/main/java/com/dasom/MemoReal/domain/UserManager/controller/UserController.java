@@ -18,7 +18,7 @@ public class UserController {
     @PostMapping("/register")
     public CommonResponse<?> register(@RequestBody UserRegisterRequest request) {
         User user = userService.register(request);
-        return new CommonResponse<>(false, user);
+        return new CommonResponse<>(true, user);
     }
 
     @PostMapping("/login")
@@ -28,7 +28,7 @@ public class UserController {
         String token = JwtUtil.generateToken(user.getUsername());
         LoginDTO.Response response = new LoginDTO.Response(token);
 
-        return new CommonResponse<>(false, response);
+        return new CommonResponse<>(true, response);
     }
 
     @PutMapping("/update")
@@ -40,6 +40,6 @@ public class UserController {
 
         User updatedUser = userService.updateUserInfoByMap(email, updates);
 
-        return new CommonResponse<>(false, updatedUser);
+        return new CommonResponse<>(true, updatedUser);
     }
 }
