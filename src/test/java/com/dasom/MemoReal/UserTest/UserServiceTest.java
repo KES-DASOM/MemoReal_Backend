@@ -4,6 +4,8 @@ import com.dasom.MemoReal.domain.UserManager.dto.UserRegisterRequest;
 import com.dasom.MemoReal.domain.UserManager.entity.User;
 import com.dasom.MemoReal.domain.UserManager.repository.UserRepository;
 import com.dasom.MemoReal.domain.UserManager.service.UserService;
+import com.dasom.MemoReal.global.exception.ErrorCode; // 기존 import (패키지명 변경됨)
+import com.dasom.MemoReal.global.exception.BusinessException; // 기존 import (패키지명 변경됨)
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -26,7 +28,7 @@ class UserServiceTest {
     void setUp() {
         repository = mock(UserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
-        userService = new UserService(repository,passwordEncoder);
+        userService = new UserService(repository, passwordEncoder);
     }
 
     @Nested
@@ -62,8 +64,8 @@ class UserServiceTest {
             when(repository.existsByUsername("user1")).thenReturn(true);
 
             assertThatThrownBy(() -> userService.register(request))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("이미 존재하는 사용자명입니다.")
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DUPLICATE_USERNAME)
                     .satisfies(e -> {
                         System.out.println("▶ 예외 메시지: " + e.getMessage());
                         System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
@@ -81,8 +83,8 @@ class UserServiceTest {
             when(repository.existsByEmail("user@example.com")).thenReturn(true);
 
             assertThatThrownBy(() -> userService.register(request))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("이미 존재하는 이메일입니다.")
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DUPLICATE_EMAIL)
                     .satisfies(e -> {
                         System.out.println("▶ 예외 메시지: " + e.getMessage());
                         System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
@@ -122,8 +124,8 @@ class UserServiceTest {
 
             // when & then
             assertThatThrownBy(() -> userService.login("nonexistent@example.com", "any_password"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("이메일이 존재하지 않습니다.");
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
 
             System.out.println("❌ 로그인 실패 - 이메일 없음으로 예외 발생");
         }
@@ -140,8 +142,8 @@ class UserServiceTest {
 
             // when & then
             assertThatThrownBy(() -> userService.login("user@example.com", "wrongpass"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("비밀번호가 일치하지 않습니다.");
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_PASSWORD);
 
             System.out.println("❌ 로그인 실패 - 비밀번호 불일치로 예외 발생");
         }
@@ -170,6 +172,31 @@ class UserServiceTest {
             assertThat(result.getUsername()).isEqualTo("newUser");
         }
 
+        // --- 새로 추가된 테스트 케이스 ---
+        @Test
+        @DisplayName("이미 존재하는 username으로 수정 시도")
+        void update_duplicateUsername() {
+            System.out.println("──────────── 이미 존재하는 username으로 수정 시도 테스트 시작 ────────────");
+
+            User currentUser = new User("user1", "user@example.com", "pass");
+            String existingUsername = "existingUser"; // 이미 DB에 있는 사용자명 가정
+
+            when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(currentUser));
+            when(repository.existsByUsername(existingUsername)).thenReturn(true); // 이미 존재한다고 가정
+
+            Map<String, Object> updates = Map.of("username", existingUsername);
+
+            assertThatThrownBy(() -> userService.updateUserInfoByMap("user@example.com", updates))
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DUPLICATE_USERNAME)
+                    .satisfies(e -> {
+                        System.out.println("▶ 예외 메시지: " + e.getMessage());
+                        System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
+                    });
+        }
+        // --- 새로 추가된 테스트 케이스 끝 ---
+
+
         @Test
         @DisplayName("email 수정 시도")
         void update_emailChange() {
@@ -181,8 +208,8 @@ class UserServiceTest {
             Map<String, Object> updates = Map.of("email", "new@example.com");
 
             assertThatThrownBy(() -> userService.updateUserInfoByMap("user@example.com", updates))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("이메일은 수정할 수 없습니다.")
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EMAIL_UPDATE_FORBIDDEN)
                     .satisfies(e -> {
                         System.out.println("▶ 예외 메시지: " + e.getMessage());
                         System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
@@ -219,8 +246,8 @@ class UserServiceTest {
             Map<String, Object> updates = Map.of("role", "admin");
 
             assertThatThrownBy(() -> userService.updateUserInfoByMap("user@example.com", updates))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("수정할 수 없는 필드: role")
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_UPDATE_FIELD)
                     .satisfies(e -> {
                         System.out.println("▶ 예외 메시지: " + e.getMessage());
                         System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
@@ -237,8 +264,8 @@ class UserServiceTest {
             Map<String, Object> updates = Map.of("intro", "intro");
 
             assertThatThrownBy(() -> userService.updateUserInfoByMap("unknown@example.com", updates))
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("사용자를 찾을 수 없습니다.")
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_UPDATE_NOT_FOUND)
                     .satisfies(e -> {
                         System.out.println("▶ 예외 메시지: " + e.getMessage());
                         System.out.println("✅ 예외가 정상적으로 처리되었습니다.");
