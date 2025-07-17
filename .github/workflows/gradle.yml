@@ -45,6 +45,7 @@ jobs:
             echo "DB_URL=${{ secrets.DB_URL }}" > /home/ubuntu/.env
             echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> /home/ubuntu/.env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> /home/ubuntu/.env
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> /home/ubuntu/.env
             
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker pull kjunh972/dasom_memoreal:latest
