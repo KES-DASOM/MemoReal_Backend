@@ -57,4 +57,11 @@ public class ContentController {
         String message = contentService.updateMetadataFields(id, updates);
         return ResponseEntity.ok(message);
     }
+    @DeleteMapping("/delete/{metadataId}")
+    // Todo: JWT 연동 후 실제 유저 아이디로 변경
+    public ResponseEntity<String> deleteContent(@PathVariable Long metadataId) {
+        Long userId = 1L; // TODO: JWT 연동 후 실제 유저 아이디로 변경
+        contentService.deleteMetadataAndContent(metadataId, userId);
+        return ResponseEntity.ok("메타데이터 및 IPFS 컨텐츠가 성공적으로 삭제되었습니다.");
+    }
 }

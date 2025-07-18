@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -150,5 +151,21 @@ public class ContentService {
         } else {
             return "수정 완료. 무시된 필드: " + String.join(", ", ignoredFields);
         }
+    }
+    public void deleteMetadataAndContent(Long metadataId, Long userId) {
+        Metadata metadata = repository.findById(metadataId)
+                .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND));
+
+        if (!Objects.equals(metadata.getUserId(), userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED);
+        }
+
+        try {
+            IpfsClient.unpinAndGc(metadata.getIpfsContentHash());
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.CONTENT_DELETE_FAILED, "IPFS에서 컨텐츠 삭제 실패: " + e.getMessage());
+        }
+
+        repository.delete(metadata);
     }
 }

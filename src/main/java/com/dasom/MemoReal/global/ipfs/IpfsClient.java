@@ -76,7 +76,28 @@ public class IpfsClient {
             throw new CustomException(ErrorCode.FILE_NOT_FOUND, "IPFS 요청 실패: " + e.getMessage());
         }
     }
+    public void unpinAndGc(String ipfsHash) {
+        try {
+            ProcessBuilder unpinBuilder = new ProcessBuilder("ipfs", "pin", "rm", ipfsHash);
+            Process unpin = unpinBuilder.start();
+            int unpinExit = unpin.waitFor();
 
+            if (unpinExit != 0) {
+                throw new RuntimeException("IPFS pin 제거 실패");
+            }
+
+            ProcessBuilder gcBuilder = new ProcessBuilder("ipfs", "repo", "gc");
+            Process gc = gcBuilder.start();
+            int gcExit = gc.waitFor();
+
+            if (gcExit != 0) {
+                throw new RuntimeException("IPFS repo gc 실패");
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("IPFS 삭제 과정 중 오류 발생: " + e.getMessage(), e);
+        }
+    }
     // 간단한 JSON 값 파싱
     private String extractValue(String json, String key) {
         int start = json.indexOf("\"" + key + "\":\"") + key.length() + 4;
