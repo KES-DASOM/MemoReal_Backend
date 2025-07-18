@@ -13,8 +13,15 @@ import org.springframework.web.client.RestTemplate;
 import java.io.File;
 
 @Component
-public class IpfsUploader {
+public class IpfsClient {
 
+    private static final String IPFS_API_BASE_URL = "http://localhost:5001/api/v0";
+
+    /**
+     * IPFS에 파일 업로드
+     * @param file 업로드할 파일
+     * @return 업로드 결과 객체 (해시, 파일명, 크기)
+     */
     public IpfsUploadResult upload(File file) {
         try {
             RestTemplate restTemplate = new RestTemplate();
@@ -28,7 +35,7 @@ public class IpfsUploader {
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
             ResponseEntity<String> response = restTemplate.postForEntity(
-                    "http://localhost:5001/api/v0/add",
+                    IPFS_API_BASE_URL + "/add",
                     requestEntity,
                     String.class
             );
@@ -48,6 +55,29 @@ public class IpfsUploader {
         }
     }
 
+    /**
+     * IPFS 해시로부터 파일 데이터 다운로드
+     * @param ipfsHash IPFS 파일 해시
+     * @return 파일 데이터 바이트 배열
+     */
+    public byte[] download(String ipfsHash) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String url = IPFS_API_BASE_URL + "/cat?arg=" + ipfsHash;
+
+            ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                return response.getBody();
+            } else {
+                throw new CustomException(ErrorCode.FILE_NOT_FOUND, "IPFS 파일 다운로드 실패: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            throw new CustomException(ErrorCode.FILE_NOT_FOUND, "IPFS 요청 실패: " + e.getMessage());
+        }
+    }
+
+    // 간단한 JSON 값 파싱
     private String extractValue(String json, String key) {
         int start = json.indexOf("\"" + key + "\":\"") + key.length() + 4;
         int end = json.indexOf("\"", start);

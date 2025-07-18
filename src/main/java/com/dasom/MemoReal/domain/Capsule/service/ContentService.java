@@ -6,7 +6,7 @@ import com.dasom.MemoReal.domain.Capsule.entity.Metadata;
 import com.dasom.MemoReal.domain.Capsule.repository.MetadataRepository;
 import com.dasom.MemoReal.global.exception.CustomException;
 import com.dasom.MemoReal.global.exception.ErrorCode;
-import com.dasom.MemoReal.global.ipfs.IpfsUploader;
+import com.dasom.MemoReal.global.ipfs.IpfsClient;
 import com.dasom.MemoReal.global.ipfs.dto.IpfsUploadResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,10 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 public class ContentService {
 
     private final MetadataRepository repository;
-    private final IpfsUploader ipfsUploader;
+    private final IpfsClient IpfsClient;
 
     public MetadataDto upload(MultipartFile file, ContentUploadRequest request, Long userId) {
         if (userId == null) {
@@ -38,7 +38,7 @@ public class ContentService {
             file.transferTo(tempFile.toPath());
 
             // IPFS에 업로드
-            IpfsUploadResult ipfsResult = ipfsUploader.upload(tempFile);
+            IpfsUploadResult ipfsResult = IpfsClient.upload(tempFile);
 
             // Metadata 엔티티 생성 및 저장
             Metadata metadata = request.toEntity(
@@ -75,8 +75,8 @@ public class ContentService {
         return MetadataDto.fromEntity(metadata);
     }
 
-    // 파일 다운로드 (mocked)
-    public byte[] downloadFile(Long id) throws Exception {
+    // IPFS에서 실제 파일 다운로드
+    public byte[] downloadFile(Long id) {
         Metadata metadata = repository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND, "메타데이터를 찾을 수 없습니다. ID: " + id));
 
@@ -87,12 +87,8 @@ public class ContentService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        Path mockPath = Path.of("/tmp/mock-decrypted/" + metadata.getIpfsContentHash());
-        if (!Files.exists(mockPath)) {
-            throw new CustomException(ErrorCode.FILE_NOT_FOUND);
-        }
-
-        return Files.readAllBytes(mockPath);
+        // IPFS 해시를 이용해 실제 파일 다운로드
+        return IpfsClient.download(metadata.getIpfsContentHash());
     }
 
     public List<MetadataDto> findAllByUserId(Long userId) {
@@ -108,5 +104,51 @@ public class ContentService {
         return metadataList.stream()
                 .map(MetadataDto::fromEntity)
                 .collect(Collectors.toList());
+    }
+    public String updateMetadataFields(Long id, Map<String, Object> updates) {
+        Metadata metadata = repository.findById(id)
+                .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND, "메타데이터를 찾을 수 없습니다. ID: " + id));
+
+        // 수정 가능한 필드 목록
+        List<String> allowedFields = List.of("filename", "contentType", "title", "description", "category", "tags");
+
+        // 수정 불가능한 필드를 담을 리스트
+        List<String> ignoredFields = new ArrayList<>();
+
+        // 실제 수정할 필드들 처리
+        updates.forEach((key, value) -> {
+            if (allowedFields.contains(key)) {
+                switch (key) {
+                    case "filename":
+                        metadata.setFilename((String) value);
+                        break;
+                    case "contentType":
+                        metadata.setContentType((String) value);
+                        break;
+                    case "title":
+                        metadata.setTitle((String) value);
+                        break;
+                    case "description":
+                        metadata.setDescription((String) value);
+                        break;
+                    case "category":
+                        metadata.setCategory((String) value);
+                        break;
+                    case "tags":
+                        metadata.setTags((String) value);
+                        break;
+                }
+            } else {
+                ignoredFields.add(key);
+            }
+        });
+
+        repository.save(metadata);
+
+        if (ignoredFields.isEmpty()) {
+            return "수정 완료.";
+        } else {
+            return "수정 완료. 무시된 필드: " + String.join(", ", ignoredFields);
+        }
     }
 }
