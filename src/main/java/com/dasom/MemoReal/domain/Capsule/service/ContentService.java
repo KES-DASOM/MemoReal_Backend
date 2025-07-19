@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class ContentService {
 
     private final MetadataRepository repository;
-    private final IpfsClient IpfsClient;
+    private final IpfsClient ipfsClient;
 
     public MetadataDto upload(MultipartFile file, ContentUploadRequest request, Long userId) {
         if (userId == null) {
@@ -34,14 +34,11 @@ public class ContentService {
         }
         File tempFile = null;
         try {
-            // MultipartFile을 임시 파일로 저장
             tempFile = File.createTempFile("upload-", file.getOriginalFilename());
             file.transferTo(tempFile.toPath());
 
-            // IPFS에 업로드
-            IpfsUploadResult ipfsResult = IpfsClient.upload(tempFile);
+            IpfsUploadResult ipfsResult = ipfsClient.upload(tempFile);
 
-            // Metadata 엔티티 생성 및 저장
             Metadata metadata = request.toEntity(
                     ipfsResult.getFileName(),
                     file.getContentType(),
@@ -51,14 +48,12 @@ public class ContentService {
             );
             repository.save(metadata);
 
-            // 저장된 메타데이터를 DTO로 변환 후 반환
             return MetadataDto.fromEntity(metadata);
 
         } catch (IOException e) {
             throw new CustomException(ErrorCode.UPLOAD_FAILED, "파일 처리 중 오류 발생: " + e.getMessage());
 
         } finally {
-            // 업로드 후 임시 파일 삭제
             if (tempFile != null && tempFile.exists()) {
                 boolean deleted = tempFile.delete();
                 if (!deleted) {
@@ -68,7 +63,6 @@ public class ContentService {
         }
     }
 
-    // 메타데이터 조회
     public MetadataDto retrieveMetadata(Long id) {
         Metadata metadata = repository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND, "메타데이터를 찾을 수 없습니다. ID: " + id));
@@ -76,10 +70,13 @@ public class ContentService {
         return MetadataDto.fromEntity(metadata);
     }
 
-    // IPFS에서 실제 파일 다운로드
-    public byte[] downloadFile(Long id) {
+    public byte[] downloadFile(Long id, Long userId) {
         Metadata metadata = repository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND, "메타데이터를 찾을 수 없습니다. ID: " + id));
+
+        if (!Objects.equals(metadata.getUserId(), userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED,"해당 메타데이터의 소유자가 아님");
+        }
 
         MetadataDto dto = MetadataDto.fromEntity(metadata);
 
@@ -88,8 +85,7 @@ public class ContentService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        // IPFS 해시를 이용해 실제 파일 다운로드
-        return IpfsClient.download(metadata.getIpfsContentHash());
+        return ipfsClient.download(metadata.getIpfsContentHash());
     }
 
     public List<MetadataDto> findAllByUserId(Long userId) {
@@ -98,7 +94,7 @@ public class ContentService {
         }
         List<Metadata> metadataList = repository.findAllByUserId(userId);
 
-        if (metadataList == null) {
+        if (metadataList == null || metadataList.isEmpty()) {
             throw new CustomException(ErrorCode.METADATA_NOT_FOUND,
                     "해당 유저의 메타데이터를 조회할 수 없습니다. userId: " + userId);
         }
@@ -106,17 +102,19 @@ public class ContentService {
                 .map(MetadataDto::fromEntity)
                 .collect(Collectors.toList());
     }
-    public String updateMetadataFields(Long id, Map<String, Object> updates) {
+
+    public String updateMetadataFields(Long id, Map<String, Object> updates, Long userId) {
         Metadata metadata = repository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND, "메타데이터를 찾을 수 없습니다. ID: " + id));
 
-        // 수정 가능한 필드 목록
+        if (!Objects.equals(metadata.getUserId(), userId)) {
+            throw new CustomException(ErrorCode.ACCESS_DENIED,"메타데이터의 소유자가 아님");
+        }
+
         List<String> allowedFields = List.of("filename", "contentType", "title", "description", "category", "tags");
 
-        // 수정 불가능한 필드를 담을 리스트
         List<String> ignoredFields = new ArrayList<>();
 
-        // 실제 수정할 필드들 처리
         updates.forEach((key, value) -> {
             if (allowedFields.contains(key)) {
                 switch (key) {
@@ -152,6 +150,7 @@ public class ContentService {
             return "수정 완료. 무시된 필드: " + String.join(", ", ignoredFields);
         }
     }
+
     public void deleteMetadataAndContent(Long metadataId, Long userId) {
         Metadata metadata = repository.findById(metadataId)
                 .orElseThrow(() -> new CustomException(ErrorCode.METADATA_NOT_FOUND));
@@ -161,7 +160,7 @@ public class ContentService {
         }
 
         try {
-            IpfsClient.unpinAndGc(metadata.getIpfsContentHash());
+            ipfsClient.unpinAndGc(metadata.getIpfsContentHash());
         } catch (Exception e) {
             throw new CustomException(ErrorCode.CONTENT_DELETE_FAILED, "IPFS에서 컨텐츠 삭제 실패: " + e.getMessage());
         }
