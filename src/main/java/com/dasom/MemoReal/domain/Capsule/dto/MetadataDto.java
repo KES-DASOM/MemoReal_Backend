@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MetadataDto {
+    private Long id;// 테스트용 필드
     private String filename;
     private String contentType; //확장자
     private String title;
@@ -21,6 +22,7 @@ public class MetadataDto {
 
     public static MetadataDto fromEntity(Metadata metadata) {
         return new MetadataDto(
+                metadata.getId(),
                 metadata.getFilename(),
                 metadata.getContentType(),
                 metadata.getTitle(),
@@ -32,4 +34,5 @@ public class MetadataDto {
                 metadata.getTags()
         );
     }
+
 }

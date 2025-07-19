@@ -7,6 +7,7 @@ import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
+@Builder
 @AllArgsConstructor
 public class ContentUploadRequest {
 

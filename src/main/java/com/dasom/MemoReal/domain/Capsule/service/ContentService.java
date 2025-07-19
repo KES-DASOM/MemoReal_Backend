@@ -37,7 +37,7 @@ public class ContentService {
             tempFile = File.createTempFile("upload-", file.getOriginalFilename());
             file.transferTo(tempFile.toPath());
 
-            IpfsUploadResult ipfsResult = ipfsClient.upload(tempFile);
+            IpfsUploadResult ipfsResult = ipfsClient.uploadToMfs(tempFile);
 
             Metadata metadata = request.toEntity(
                     ipfsResult.getFileName(),
@@ -85,8 +85,14 @@ public class ContentService {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        return ipfsClient.download(metadata.getIpfsContentHash());
+        // 현재는 MFS 내 저장된 파일명을 기반으로 다운로드
+        // 추후 해시(IPFS content hash) 기반으로 다운로드 기능 개선 예정
+        return ipfsClient.downloadFromMfs(metadata.getFilename());
+
+        // 아래는 해시 기반 다운로드 시 사용 예시 (미구현)
+        // return ipfsClient.downloadByHash(metadata.getIpfsContentHash());
     }
+
 
     public List<MetadataDto> findAllByUserId(Long userId) {
         if (userId == null) {
@@ -160,7 +166,7 @@ public class ContentService {
         }
 
         try {
-            ipfsClient.unpinAndGc(metadata.getIpfsContentHash());
+            ipfsClient.deleteFromMfs(metadata.getIpfsContentHash());
         } catch (Exception e) {
             throw new CustomException(ErrorCode.CONTENT_DELETE_FAILED, "IPFS에서 컨텐츠 삭제 실패: " + e.getMessage());
         }
