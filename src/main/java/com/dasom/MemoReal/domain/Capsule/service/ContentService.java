@@ -102,19 +102,13 @@ public class ContentService {
             throw new CustomException(ErrorCode.ACCESS_DENIED,"메타데이터의 소유자가 아님");
         }
 
-        List<String> allowedFields = List.of("filename", "contentType", "title", "description", "category", "tags");
+        List<String> allowedFields = List.of("title", "description", "category", "tags");
 
         List<String> ignoredFields = new ArrayList<>();
 
         updates.forEach((key, value) -> {
             if (allowedFields.contains(key)) {
                 switch (key) {
-                    case "filename":
-                        metadata.setFilename((String) value);
-                        break;
-                    case "contentType":
-                        metadata.setContentType((String) value);
-                        break;
                     case "title":
                         metadata.setTitle((String) value);
                         break;
