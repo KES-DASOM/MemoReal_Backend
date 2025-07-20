@@ -21,4 +21,5 @@ spring:
         dialect: org.hibernate.dialect.MySQL8Dialect
 
 ipfs:
-  api-base-url: ${IPFS_API_BASE_URL}
+  api-base-url: http://127.0.0.1:5001/api/v0
+  # ${IPFS_API_BASE_URL}
