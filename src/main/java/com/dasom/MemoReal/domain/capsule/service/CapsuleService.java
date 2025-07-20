@@ -1,21 +1,23 @@
 package com.dasom.MemoReal.domain.capsule.service;
 
-import com.dasom.MemoReal.domain.capsule.dto.CapsuleDto.CapsuleRequestDto;
-import com.dasom.MemoReal.domain.capsule.dto.CapsuleDto.CapsuleResponseDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleRequestDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleResponseDto;
 import com.dasom.MemoReal.domain.capsule.entity.Capsule;
 import com.dasom.MemoReal.domain.capsule.repository.CapsuleRepository;
 import com.dasom.MemoReal.domain.user.entity.User;
 import com.dasom.MemoReal.domain.user.repository.UserRepository;
 import com.dasom.MemoReal.global.exception.CustomException;
 import com.dasom.MemoReal.global.exception.ErrorCode;
+import com.dasom.MemoReal.global.security.util.SecurityUtil;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -25,86 +27,81 @@ public class CapsuleService {
     private final CapsuleRepository capsuleRepository;
     private final UserRepository userRepository;
 
-    // 현재 인증된 사용자 User 엔티티를 가져오는 헬퍼 메서드
-    private User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new CustomException(ErrorCode.UNAUTHORIZED);
-        }
-        String userEmail = authentication.getName();
-
-        return userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
-    }
-
-    // 캡슐 생성
+    /**
+     * 새로운 캡슐을 생성합니다.
+     */
     public CapsuleResponseDto createCapsule(CapsuleRequestDto requestDto) {
-        User currentUser = getCurrentUser();
+        String currentUserEmail = SecurityUtil.getCurrentUsername(); // CustomException(UNAUTHORIZED) 발생 가능
+        User currentUser = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
-        Capsule capsule = requestDto.toEntity();
-        capsule.setUser(currentUser);
-
+        Capsule capsule = Capsule.toEntity(requestDto, currentUser);
         Capsule savedCapsule = capsuleRepository.save(capsule);
-        System.out.println("Capsule 저장 완료, ID: " + savedCapsule.getId());
-        return CapsuleResponseDto.toDto(savedCapsule);
+        return Capsule.toDto(savedCapsule);
     }
 
-    // 캡슐 조회 (단일)
+    /**
+     * 특정 ID의 캡슐을 조회합니다.
+     */
     @Transactional(readOnly = true)
     public CapsuleResponseDto getCapsule(Long id) {
-        User currentUser = getCurrentUser();
+        String currentUserEmail = SecurityUtil.getCurrentUsername(); // CustomException(UNAUTHORIZED) 발생 가능
         Capsule capsule = findCapsuleById(id);
 
-        if (!capsule.getUser().getId().equals(currentUser.getId())) {
+        if (!capsule.getUser().getEmail().equals(currentUserEmail)) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
-
-        return CapsuleResponseDto.toDto(capsule);
+        return Capsule.toDto(capsule);
     }
 
-    // 모든 캡슐 조회 (현재 로그인된 사용자의 캡슐만 조회)
+    /**
+     * 현재 사용자가 소유한 모든 캡슐을 조회합니다.
+     */
     @Transactional(readOnly = true)
     public List<CapsuleResponseDto> getAllCapsules() {
-        User currentUser = getCurrentUser();
+        String currentUserEmail = SecurityUtil.getCurrentUsername(); // CustomException(UNAUTHORIZED) 발생 가능
+        User currentUser = userRepository.findByEmail(currentUserEmail)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND));
 
         return capsuleRepository.findByUser(currentUser).stream()
-                .map(CapsuleResponseDto::toDto)
+                .map(Capsule::toDto)
                 .collect(Collectors.toList());
     }
 
-    // 캡슐 업데이트
+    /**
+     * 특정 캡슐을 수정합니다.
+     */
     public CapsuleResponseDto updateCapsule(Long id, CapsuleRequestDto requestDto) {
-        User currentUser = getCurrentUser();
+        String currentUserEmail = SecurityUtil.getCurrentUsername(); // CustomException(UNAUTHORIZED) 발생 가능
         Capsule capsule = findCapsuleById(id);
 
-        if (!capsule.getUser().getId().equals(currentUser.getId())) {
+        if (!capsule.getUser().getEmail().equals(currentUserEmail)) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
-        capsule.update(
-                requestDto.getTitle(),
-                requestDto.getType(),
-                requestDto.getContent(),
-                requestDto.getOpenDate()
-        );
+        capsule.update(requestDto); // requestDto 객체 자체를 전달합니다.
 
         Capsule savedCapsule = capsuleRepository.save(capsule);
-        return CapsuleResponseDto.toDto(savedCapsule);
+        return Capsule.toDto(savedCapsule);
     }
 
-    // 캡슐 삭제
+    /**
+     * 특정 캡슐을 삭제합니다.
+     */
     public void deleteCapsule(Long id) {
-        User currentUser = getCurrentUser();
+        String currentUserEmail = SecurityUtil.getCurrentUsername(); // CustomException(UNAUTHORIZED) 발생 가능
         Capsule capsule = findCapsuleById(id);
 
-        if (!capsule.getUser().getId().equals(currentUser.getId())) {
+        if (!capsule.getUser().getEmail().equals(currentUserEmail)) {
             throw new CustomException(ErrorCode.UNAUTHORIZED);
         }
 
         capsuleRepository.delete(capsule);
     }
 
-    // ID로 캡슐을 찾는 내부 메서드 (CustomException 사용)
+    /**
+     * ID를 통해 캡슐을 찾고, 없을 경우 예외를 발생시킵니다.
+     */
     private Capsule findCapsuleById(Long id) {
         return capsuleRepository.findById(id)
                 .orElseThrow(() -> new CustomException(ErrorCode.CAPSULE_NOT_FOUND));
