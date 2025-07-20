@@ -18,7 +18,11 @@ public enum ErrorCode {
     // 일반적인 에러(유효성 검사 등)
     INVALID_INPUT_VALUE("COMMON_001", HttpStatus.BAD_REQUEST, "유효하지 않은 입력 값입니다."),
     UNAUTHORIZED("COMMON_002", HttpStatus.UNAUTHORIZED, "인증되지 않은 접근입니다."),
-    INTERNAL_SERVER_ERROR("COMMON_999", HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
+    INTERNAL_SERVER_ERROR("COMMON_999", HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
+
+    // 캡슐 관련 오류
+    CAPSULE_NOT_FOUND("CAPSULE_001", HttpStatus.NOT_FOUND, "해당 캡슐을 찾을 수 없습니다."),
+    INVALID_CAPSULE_REQUEST("CAPSULE_002", HttpStatus.BAD_REQUEST, "잘못된 요청입니다.");
 
     private final String code;
     private final HttpStatus httpStatus;
