@@ -1,12 +1,15 @@
 package com.dasom.MemoReal.domain.capsule.entity;
 
+import com.dasom.MemoReal.domain.capsule.dto.MediaDto;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Getter
-@Setter
+@AllArgsConstructor
+@Builder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(name = "medias")
 public class Media {
 
     @Id
@@ -20,10 +23,16 @@ public class Media {
     @JoinColumn(name = "capsule_id")
     private Capsule capsule;
 
-    @Builder
-    public Media(String cid, String originalFileName) {
-        this.cid = cid;
-        this.originalFileName = originalFileName;
+    public static MediaDto toDto(Media media) {
+        if (media == null) {
+            return MediaDto.builder().build();
+        }
+
+        return MediaDto.builder()
+                .id(media.getId())
+                .cid(media.getCid())
+                .originalFileName(media.getOriginalFileName())
+                .build();
     }
 
 }
