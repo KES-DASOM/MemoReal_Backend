@@ -27,7 +27,8 @@ public enum ErrorCode {
     ACCESS_DENIED("CONTENT_003", HttpStatus.FORBIDDEN, "열람 조건을 만족하지 못했습니다."),
     UPLOAD_FAILED("CONTENT_004", HttpStatus.INTERNAL_SERVER_ERROR, "컨텐츠 업로드에 실패했습니다."),
     INVALID_INPUT("CONTENT_005", HttpStatus.BAD_REQUEST, "유효하지 않은 입력 값입니다."),
-    CONTENT_DELETE_FAILED("CONTENT_006",HttpStatus.INTERNAL_SERVER_ERROR ,"컨텐츠 삭제 실패");
+    CONTENT_DELETE_FAILED("CONTENT_006",HttpStatus.INTERNAL_SERVER_ERROR ,"컨텐츠 삭제 실패"),
+    CONTENT_DOWNLOAD_FAILED("CONTENT_007",HttpStatus.INTERNAL_SERVER_ERROR ,"컨텐츠 다운로드 실패");
     private final String code;
     private final HttpStatus httpStatus;
     private final String message;

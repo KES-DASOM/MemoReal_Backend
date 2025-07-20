@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -32,12 +31,12 @@ public class ContentService {
         if (userId == null) {
             throw new CustomException(ErrorCode.USER_ID_NOT_FOUND);
         }
-        File tempFile = null;
-        try {
-            tempFile = File.createTempFile("upload-", file.getOriginalFilename());
-            file.transferTo(tempFile.toPath());
 
-            IpfsUploadResult ipfsResult = ipfsClient.uploadToMfs(tempFile);
+        try {
+            byte[] contentBytes = file.getBytes();
+
+            //(pin=false 옵션은 클라이언트 내부 처리)
+            IpfsUploadResult ipfsResult = ipfsClient.upload(contentBytes, file.getOriginalFilename());
 
             Metadata metadata = request.toEntity(
                     ipfsResult.getFileName(),
@@ -52,14 +51,6 @@ public class ContentService {
 
         } catch (IOException e) {
             throw new CustomException(ErrorCode.UPLOAD_FAILED, "파일 처리 중 오류 발생: " + e.getMessage());
-
-        } finally {
-            if (tempFile != null && tempFile.exists()) {
-                boolean deleted = tempFile.delete();
-                if (!deleted) {
-                    System.err.println("임시 파일 삭제 실패: " + tempFile.getAbsolutePath());
-                }
-            }
         }
     }
 
@@ -78,19 +69,13 @@ public class ContentService {
             throw new CustomException(ErrorCode.ACCESS_DENIED,"해당 메타데이터의 소유자가 아님");
         }
 
-        MetadataDto dto = MetadataDto.fromEntity(metadata);
-
-        LocalDate accessDate = LocalDate.parse(dto.getAccessCondition());
+        LocalDate accessDate = LocalDate.parse(metadata.getAccessCondition());
         if (LocalDate.now().isBefore(accessDate)) {
             throw new CustomException(ErrorCode.ACCESS_DENIED);
         }
 
-        // 현재는 MFS 내 저장된 파일명을 기반으로 다운로드
-        // 추후 해시(IPFS content hash) 기반으로 다운로드 기능 개선 예정
-        return ipfsClient.downloadFromMfs(metadata.getFilename());
-
-        // 아래는 해시 기반 다운로드 시 사용 예시 (미구현)
-        // return ipfsClient.downloadByHash(metadata.getIpfsContentHash());
+        // 해시 기반 다운로드
+        return ipfsClient.downloadByHash(metadata.getIpfsContentHash());
     }
 
 
@@ -166,7 +151,7 @@ public class ContentService {
         }
 
         try {
-            ipfsClient.deleteFromMfs(metadata.getIpfsContentHash());
+            ipfsClient.deleteByHash(metadata.getIpfsContentHash());
         } catch (Exception e) {
             throw new CustomException(ErrorCode.CONTENT_DELETE_FAILED, "IPFS에서 컨텐츠 삭제 실패: " + e.getMessage());
         }

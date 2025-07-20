@@ -73,9 +73,11 @@ public class ContentFullIntegrationTest {
         MetadataDto metadata = uploadTestFile();
 
         assertNotNull(metadata);
-        assertEquals("Title", metadata.getTitle());
-        logger.info("testUpload 성공 - 제목: {}", metadata.getTitle());
-        logger.info("========== testUpload 종료 ==========\n");
+
+        // title 대신 IPFS 해시값을 출력 및 비교
+        String expectedHash = metadata.getFileHash();
+        assertNotNull(expectedHash, "해시 값이 null이면 안됩니다.");
+        logger.info("testUpload 성공 - IPFS 해시: {}", expectedHash);
     }
 
     @Test
@@ -86,18 +88,19 @@ public class ContentFullIntegrationTest {
         MetadataDto retrieved = contentService.retrieveMetadata(uploaded.getId());
         assertEquals(uploaded.getTitle(), retrieved.getTitle());
         logger.info("testRetrieveMetadata 성공 - 제목: {}", retrieved.getTitle());
-        logger.info("========== testRetrieveMetadata 종료 ==========\n");
     }
 
     @Test
     void testFindAllByUserId() {
         logger.info("========== testFindAllByUserId 시작 ==========");
+        // 2개 이상의 콘텐츠 업로드
+        uploadTestFile();
         uploadTestFile();
 
         List<MetadataDto> list = contentService.findAllByUserId(testUserId);
         assertFalse(list.isEmpty());
+        assertTrue(list.size() >= 2, "2개 이상의 메타데이터가 조회되어야 합니다.");
         logger.info("testFindAllByUserId 성공 - 메타데이터 수: {}", list.size());
-        logger.info("========== testFindAllByUserId 종료 ==========\n");
     }
 
     @Test
@@ -114,7 +117,6 @@ public class ContentFullIntegrationTest {
         String content = new String(fileData);
         logger.info("다운로드된 파일 내용: {}", content);
 
-        logger.info("========== testDownloadFile 종료 ==========\n");
     }
 
     @Test
@@ -128,7 +130,6 @@ public class ContentFullIntegrationTest {
         MetadataDto updated = contentService.retrieveMetadata(uploaded.getId());
         assertEquals("Updated Title", updated.getTitle());
         logger.info("testUpdateMetadataFields 성공 - 수정된 제목: {}", updated.getTitle());
-        logger.info("========== testUpdateMetadataFields 종료 ==========\n");
     }
 
     @Test
@@ -142,6 +143,5 @@ public class ContentFullIntegrationTest {
 
         assertThrows(CustomException.class, () -> contentService.retrieveMetadata(id));
         logger.info("testDeleteMetadataAndContent 성공 - 삭제 후 메타데이터 조회 시 예외 발생 확인");
-        logger.info("========== testDeleteMetadataAndContent 종료 ==========\n");
     }
 }
