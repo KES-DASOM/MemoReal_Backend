@@ -3,15 +3,20 @@ package com.dasom.MemoReal;
 import com.dasom.MemoReal.domain.Capsule.dto.ContentUploadRequest;
 import com.dasom.MemoReal.domain.Capsule.dto.MetadataDto;
 import com.dasom.MemoReal.domain.Capsule.service.ContentService;
-import com.dasom.MemoReal.domain.user.entity.User;
-import com.dasom.MemoReal.domain.user.repository.UserRepository;
+import com.dasom.MemoReal.domain.user.dto.JoinDTO;
+import com.dasom.MemoReal.domain.user.service.UserService;
 import com.dasom.MemoReal.global.exception.CustomException;
+import com.dasom.MemoReal.global.jwt.dto.JwtTokenDTO;
+import com.dasom.MemoReal.global.jwt.provider.JwtTokenProvider;
+import com.dasom.MemoReal.global.security.util.SecurityUtil;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -29,33 +34,50 @@ public class ContentFullIntegrationTest {
     private ContentService contentService;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService  userService;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
 
     private Long testUserId;
     private MockMultipartFile testFile;
 
     @BeforeEach
     void setUp() {
-        User testUser = User.builder()
+        // 1. 회원가입
+        JoinDTO joinDTO = JoinDTO.builder()
                 .username("testuser")
-                .password("encodedpassword")
+                .password("1234")
                 .email("testuser@example.com")
                 .roles(new ArrayList<>() {{
                     add("USER");
                 }})
                 .build();
-        userRepository.save(testUser);
-        testUserId = testUser.getId();
+        userService.join(joinDTO);
 
+        // 2. 로그인하여 JWT 토큰 생성
+        JwtTokenDTO tokenDTO = userService.login("testuser@example.com", "1234");
+
+        // 3. JWT 토큰에서 사용자 인증 설정
+        Authentication authentication = jwtTokenProvider.getAuthentication(tokenDTO.getAccessToken());
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // 4. SecurityContextHolder에서 유저 이름 추출
+        String username = SecurityUtil.getCurrentUsername();
+
+        // 5. 유저 이름으로부터 ID 조회
+        testUserId = userService.getUserIdByUsername(username);
+
+        // 6. 테스트용 파일 생성
         testFile = new MockMultipartFile(
                 "file",
                 "testfile.txt",
                 "text/plain",
                 "This is a test file content.".getBytes()
         );
+
         logger.info("\n"); // 한 줄 띄우기 (테스트 시작 전)
     }
-
     private MetadataDto uploadTestFile() {
         ContentUploadRequest request = ContentUploadRequest.builder()
                 .title("Title")
