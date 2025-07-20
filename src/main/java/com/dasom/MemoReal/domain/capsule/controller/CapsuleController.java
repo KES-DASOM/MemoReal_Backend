@@ -1,7 +1,7 @@
 package com.dasom.MemoReal.domain.capsule.controller;
 
-import com.dasom.MemoReal.domain.capsule.dto.CapsuleDto.CapsuleRequestDto;
-import com.dasom.MemoReal.domain.capsule.dto.CapsuleDto.CapsuleResponseDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleRequestDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleResponseDto;
 import com.dasom.MemoReal.domain.capsule.service.CapsuleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,20 +21,17 @@ public class CapsuleController {
     public ResponseEntity<CapsuleResponseDto> createCapsule(
             @RequestBody CapsuleRequestDto requestDto
     ) {
-        CapsuleResponseDto responseDto = capsuleService.createCapsule(requestDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(responseDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(capsuleService.createCapsule(requestDto));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<CapsuleResponseDto> getCapsuleById(@PathVariable("id") Long id) {
-        CapsuleResponseDto responseDto = capsuleService.getCapsule(id);
-        return ResponseEntity.ok(responseDto);
+        return ResponseEntity.ok(capsuleService.getCapsule(id));
     }
 
     @GetMapping
     public ResponseEntity<List<CapsuleResponseDto>> getAllCapsules() {
-        List<CapsuleResponseDto> capsules = capsuleService.getAllCapsules();
-        return ResponseEntity.ok(capsules);
+        return ResponseEntity.ok(capsuleService.getAllCapsules());
     }
 
     @PutMapping("/{id}")
@@ -42,9 +39,9 @@ public class CapsuleController {
             @PathVariable("id") Long id,
             @RequestBody CapsuleRequestDto requestDto
     ) {
-        CapsuleResponseDto responseDto = capsuleService.updateCapsule(id, requestDto);
-        return ResponseEntity.ok(responseDto);
+        return ResponseEntity.ok(capsuleService.updateCapsule(id, requestDto));
     }
+
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCapsule(@PathVariable("id") Long id) {
