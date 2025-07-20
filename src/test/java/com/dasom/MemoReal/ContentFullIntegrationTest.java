@@ -166,4 +166,49 @@ public class ContentFullIntegrationTest {
         assertThrows(CustomException.class, () -> contentService.retrieveMetadata(id));
         logger.info("testDeleteMetadataAndContent 성공 - 삭제 후 메타데이터 조회 시 예외 발생 확인");
     }
+    @Test
+    void testUploadImageFile() {
+        logger.info("========== testUploadImageFile 시작 ==========");
+
+        // 샘플 이미지 바이너리 (간단한 1픽셀 PNG 이미지)
+        byte[] imageBytes = new byte[]{
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, (byte) 0xC4, (byte) 0x89,
+                0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54,
+                0x78, (byte) 0x9C, 0x63, 0x60, 0x00, 0x00, 0x00, 0x02,
+                0x00, 0x01, (byte) 0xE2, 0x21, (byte) 0xBC, 0x33,
+                0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+                (byte) 0xAE, 0x42, 0x60, (byte) 0x82
+        };
+
+        // 이미지 파일 생성
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "test-image.png",
+                "image/png",
+                imageBytes
+        );
+
+        // 요청 정보 생성
+        ContentUploadRequest request = ContentUploadRequest.builder()
+                .title("Test Image")
+                .description("Image description")
+                .category("Image")
+                .tags("image,test")
+                .accessCondition(LocalDate.now().toString())
+                .build();
+
+        // 업로드
+        MetadataDto metadata = contentService.upload(imageFile, request, testUserId);
+        assertNotNull(metadata);
+        logger.info("testUploadImageFile 업로드 성공 - IPFS 해시: {}", metadata.getFileHash());
+
+        // 다운로드
+        byte[] downloaded = contentService.downloadFile(metadata.getId(), testUserId);
+        assertNotNull(downloaded);
+        assertEquals(imageBytes.length, downloaded.length, "업로드한 이미지와 다운로드한 이미지 크기가 달라야 하지 않습니다.");
+        logger.info("testUploadImageFile 다운로드 성공 - 바이트 수: {}", downloaded.length);
+    }
 }
