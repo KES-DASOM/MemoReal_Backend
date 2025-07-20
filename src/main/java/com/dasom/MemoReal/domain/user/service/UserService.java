@@ -2,8 +2,9 @@ package com.dasom.MemoReal.domain.user.service;
 
 import com.dasom.MemoReal.domain.user.dto.JoinDTO;
 import com.dasom.MemoReal.domain.user.dto.UserDTO;
-import com.dasom.MemoReal.domain.user.entity.User;
 import com.dasom.MemoReal.domain.user.repository.UserRepository;
+import com.dasom.MemoReal.global.exception.CustomException;
+import com.dasom.MemoReal.global.exception.ErrorCode;
 import com.dasom.MemoReal.global.jwt.dto.JwtTokenDTO;
 import com.dasom.MemoReal.global.jwt.provider.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -52,7 +53,11 @@ public class UserService {
         roles.add("USER");  // USER 권한 부여
         return UserDTO.toDto(userRepository.save(signUpDto.toEntity(encodedPassword, roles)));
     }
-
+    public Long getUserIdByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new CustomException(ErrorCode.USER_NOT_FOUND))
+                .getId();
+    }
     @PostMapping("/test")
     public String test() {
         return "success";
