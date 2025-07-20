@@ -1,6 +1,7 @@
 package com.dasom.MemoReal.domain.capsule;
 
-import com.dasom.MemoReal.domain.capsule.dto.CapsuleDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleRequestDto;
+import com.dasom.MemoReal.domain.capsule.dto.CapsuleResponseDto;
 import com.dasom.MemoReal.domain.capsule.entity.Capsule;
 import com.dasom.MemoReal.domain.capsule.repository.CapsuleRepository;
 import com.dasom.MemoReal.domain.capsule.service.CapsuleService;
@@ -9,6 +10,7 @@ import com.dasom.MemoReal.domain.user.entity.User;
 import com.dasom.MemoReal.domain.user.repository.UserRepository;
 import com.dasom.MemoReal.global.exception.CustomException;
 import com.dasom.MemoReal.global.exception.ErrorCode;
+import com.dasom.MemoReal.global.security.util.SecurityUtil; // SecurityUtil 임포트 필요!
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic; // MockedStatic 임포트
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -25,6 +28,8 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong; // anyLong()을 위해 추가
 import static org.mockito.Mockito.*;
 
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -46,7 +53,6 @@ public class CapsuleServiceTest {
 
     @Mock
     private Authentication authentication;
-
     @Mock
     private SecurityContext securityContext;
 
@@ -55,15 +61,13 @@ public class CapsuleServiceTest {
 
     private User testUser;
     private Capsule testCapsule;
-    private CapsuleDto.CapsuleRequestDto testRequestDto;
+    private CapsuleRequestDto testRequestDto;
 
     @BeforeEach
     void setUp() {
-        // Spring Security Context Mocking
         when(securityContext.getAuthentication()).thenReturn(authentication);
         SecurityContextHolder.setContext(securityContext);
 
-        // 테스트에 사용될 사용자(User) 객체 설정
         testUser = User.builder()
                 .id(1L)
                 .email("test@example.com")
@@ -71,29 +75,26 @@ public class CapsuleServiceTest {
                 .password("password")
                 .build();
 
-        // 테스트에 사용될 캡슐(Capsule) 객체 설정 (업데이트/조회/삭제 등에서 사용)
-        // 핵심 변경 사항: builder() 체인에서 id()를 호출하지 않고,
-        // build() 후에 setId() 메서드를 호출하여 id를 설정합니다.
         testCapsule = Capsule.builder()
+                .id(1L)
                 .title("테스트 캡슐")
-                .type(CapsuleType.TIME)
+                .type(CapsuleType.NORMAL)
                 .content("테스트 내용")
                 .openDate(LocalDate.now().plusDays(7))
-                .user(testUser) // Capsule 엔티티의 @Builder 생성자에 user가 포함되어 있으므로 빌더로 설정하는 것이 좋습니다.
+                .user(testUser)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .medias(new ArrayList<>())
                 .build();
-        testCapsule.setId(1L); // <-- 이 부분이 @Setter가 있어야 가능하며, 빌더 체인 밖에서 호출됩니다.
 
-        // 테스트에 사용될 요청 DTO (create/update 등에서 사용)
-        testRequestDto = CapsuleDto.CapsuleRequestDto.builder()
+        testRequestDto = CapsuleRequestDto.builder()
                 .title("새 캡슐 제목")
                 .type(CapsuleType.NORMAL)
                 .content("새 캡슐 내용")
                 .openDate(LocalDate.now().plusMonths(1))
                 .build();
 
-        // 모든 테스트에서 공통으로 필요한 Mocking 설정
-        when(authentication.isAuthenticated()).thenReturn(true);
-        when(authentication.getName()).thenReturn(testUser.getEmail());
+        // 일반적으로 userRepository는 testUser를 반환하도록 설정
         when(userRepository.findByEmail(testUser.getEmail())).thenReturn(Optional.of(testUser));
     }
 
@@ -105,244 +106,414 @@ public class CapsuleServiceTest {
     @Test
     @DisplayName("캡슐 생성 성공")
     void createCapsule_Success() {
-        ArgumentCaptor<Capsule> capsuleCaptor = ArgumentCaptor.forClass(Capsule.class);
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        when(capsuleRepository.save(capsuleCaptor.capture())).thenAnswer(invocation -> {
-            Capsule capturedCapsule = invocation.getArgument(0);
-            capturedCapsule.setId(1L); // 가상의 ID 설정
-            return capturedCapsule;
-        });
+            ArgumentCaptor<Capsule> capsuleCaptor = ArgumentCaptor.forClass(Capsule.class);
 
-        CapsuleDto.CapsuleResponseDto responseDto = capsuleService.createCapsule(testRequestDto);
+            when(capsuleRepository.save(capsuleCaptor.capture())).thenAnswer(invocation -> {
+                Capsule capturedCapsule = invocation.getArgument(0);
+                return Capsule.builder()
+                        .id(1L)
+                        .title(capturedCapsule.getTitle())
+                        .type(capturedCapsule.getType())
+                        .content(capturedCapsule.getContent())
+                        .openDate(capturedCapsule.getOpenDate())
+                        .user(capturedCapsule.getUser())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .medias(new ArrayList<>())
+                        .build();
+            });
 
-        assertThat(responseDto).isNotNull();
-        assertThat(responseDto.getTitle()).isEqualTo(testRequestDto.getTitle());
-        assertThat(responseDto.getType()).isEqualTo(testRequestDto.getType());
-        assertThat(responseDto.getContent()).isEqualTo(testRequestDto.getContent());
-        assertThat(responseDto.getOpenDate()).isEqualTo(testRequestDto.getOpenDate());
-        assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
+            CapsuleResponseDto responseDto = capsuleService.createCapsule(testRequestDto);
 
-        Capsule savedCapsule = capsuleCaptor.getValue();
-        assertThat(savedCapsule.getTitle()).isEqualTo(testRequestDto.getTitle());
-        assertThat(savedCapsule.getType()).isEqualTo(testRequestDto.getType());
-        assertThat(savedCapsule.getContent()).isEqualTo(testRequestDto.getContent());
-        assertThat(savedCapsule.getOpenDate()).isEqualTo(testRequestDto.getOpenDate());
-        assertThat(savedCapsule.getUser()).isEqualTo(testUser);
+            assertThat(responseDto).isNotNull();
+            assertThat(responseDto.getTitle()).isEqualTo(testRequestDto.getTitle());
+            assertThat(responseDto.getType()).isEqualTo(testRequestDto.getType());
+            assertThat(responseDto.getContent()).isEqualTo(testRequestDto.getContent());
+            assertThat(responseDto.getOpenDate()).isEqualTo(testRequestDto.getOpenDate());
+            assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
 
-        verify(capsuleRepository, times(1)).save(any(Capsule.class));
+            verify(capsuleRepository, times(1)).save(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("단일 캡슐 조회 성공")
     void getCapsule_Success() {
-        Long capsuleId = 1L;
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        CapsuleDto.CapsuleResponseDto responseDto = capsuleService.getCapsule(capsuleId);
+            Long capsuleId = 1L;
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
 
-        assertThat(responseDto).isNotNull();
-        assertThat(responseDto.getTitle()).isEqualTo(testCapsule.getTitle());
-        assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
-        verify(capsuleRepository, times(1)).findById(capsuleId);
+            CapsuleResponseDto responseDto = capsuleService.getCapsule(capsuleId);
+
+            assertThat(responseDto).isNotNull();
+            assertThat(responseDto.getTitle()).isEqualTo(testCapsule.getTitle());
+            assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("단일 캡슐 조회 실패 - 캡슐을 찾을 수 없음")
     void getCapsule_NotFound() {
-        Long nonExistentCapsuleId = 99L;
-        when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.getCapsule(nonExistentCapsuleId)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
-        verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
+            Long nonExistentCapsuleId = 99L;
+            when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.getCapsule(nonExistentCapsuleId)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
+            verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("단일 캡슐 조회 실패 - 권한 없음 (다른 사용자의 캡슐)")
     void getCapsule_Unauthorized() {
-        Long capsuleId = 1L;
-        User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
-        Capsule otherUserCapsule = Capsule.builder()
-                .title("다른 사용자 캡슐")
-                .type(CapsuleType.NORMAL)
-                .content("다른 사용자 내용")
-                .openDate(LocalDate.now().plusDays(10))
-                .user(otherUser) // user 필드도 빌더로 설정하는 것이 좋습니다.
-                .build();
-        otherUserCapsule.setId(1L); // <-- @Setter 덕분에 가능
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+            Long capsuleId = 1L;
+            User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
+            Capsule otherUserCapsule = Capsule.builder()
+                    .id(1L)
+                    .title("다른 사용자 캡슐")
+                    .type(CapsuleType.NORMAL)
+                    .content("다른 사용자 내용")
+                    .openDate(LocalDate.now().plusDays(10))
+                    .user(otherUser)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .medias(new ArrayList<>())
+                    .build();
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.getCapsule(capsuleId)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
-        verify(capsuleRepository, times(1)).findById(capsuleId);
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.getCapsule(capsuleId)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("모든 캡슐 조회 성공 (현재 사용자 캡슐만)")
     void getAllCapsules_Success() {
-        Capsule anotherCapsule = Capsule.builder()
-                .title("다른 내 캡슐")
-                .type(CapsuleType.NORMAL)
-                .content("내용2")
-                .openDate(LocalDate.now().plusDays(14))
-                .user(testUser) // user 필드도 빌더로 설정하는 것이 좋습니다.
-                .build();
-        anotherCapsule.setId(2L); // <-- @Setter 덕분에 가능
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        List<Capsule> userCapsules = Arrays.asList(testCapsule, anotherCapsule);
-        when(capsuleRepository.findByUser(testUser)).thenReturn(userCapsules);
+            Capsule anotherCapsule = Capsule.builder()
+                    .id(2L)
+                    .title("다른 내 캡슐")
+                    .type(CapsuleType.NORMAL)
+                    .content("내용2")
+                    .openDate(LocalDate.now().plusDays(14))
+                    .user(testUser)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .medias(new ArrayList<>())
+                    .build();
 
-        List<CapsuleDto.CapsuleResponseDto> responseDtos = capsuleService.getAllCapsules();
+            List<Capsule> userCapsules = Arrays.asList(testCapsule, anotherCapsule);
+            when(capsuleRepository.findByUser(testUser)).thenReturn(userCapsules);
 
-        assertThat(responseDtos).isNotNull();
-        assertThat(responseDtos).hasSize(2);
-        assertThat(responseDtos.get(0).getTitle()).isEqualTo(testCapsule.getTitle());
-        assertThat(responseDtos.get(1).getTitle()).isEqualTo(anotherCapsule.getTitle());
-        responseDtos.forEach(dto -> assertThat(dto.getUser().getEmail()).isEqualTo(testUser.getEmail()));
-        verify(capsuleRepository, times(1)).findByUser(testUser);
+            List<CapsuleResponseDto> responseDtos = capsuleService.getAllCapsules();
+
+            assertThat(responseDtos).isNotNull();
+            assertThat(responseDtos).hasSize(2);
+            assertThat(responseDtos.get(0).getTitle()).isEqualTo(testCapsule.getTitle());
+            assertThat(responseDtos.get(1).getTitle()).isEqualTo(anotherCapsule.getTitle());
+            responseDtos.forEach(dto -> {
+                assertThat(dto.getUser().getEmail()).isEqualTo(testUser.getEmail());
+            });
+            verify(capsuleRepository, times(1)).findByUser(testUser);
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 업데이트 성공")
     void updateCapsule_Success() {
-        Long capsuleId = 1L;
-        testCapsule.update("업데이트 전 제목", CapsuleType.TIME, "업데이트 전 내용", LocalDate.now().plusDays(5));
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
-        when(capsuleRepository.save(any(Capsule.class))).thenReturn(testCapsule);
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        CapsuleDto.CapsuleRequestDto updateRequestDto = CapsuleDto.CapsuleRequestDto.builder()
-                .title("업데이트된 제목")
-                .type(CapsuleType.NORMAL)
-                .content("업데이트된 내용")
-                .openDate(LocalDate.now().plusDays(30))
-                .build();
+            Long capsuleId = 1L;
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
+            when(capsuleRepository.save(any(Capsule.class))).thenReturn(testCapsule);
 
-        CapsuleDto.CapsuleResponseDto responseDto = capsuleService.updateCapsule(capsuleId, updateRequestDto);
+            CapsuleRequestDto updateRequestDto = CapsuleRequestDto.builder()
+                    .title("업데이트된 제목")
+                    .type(CapsuleType.TIME)
+                    .content("업데이트된 내용")
+                    .openDate(LocalDate.now().plusDays(30))
+                    .build();
 
-        assertThat(responseDto).isNotNull();
-        assertThat(responseDto.getTitle()).isEqualTo(updateRequestDto.getTitle());
-        assertThat(responseDto.getType()).isEqualTo(updateRequestDto.getType());
-        assertThat(responseDto.getContent()).isEqualTo(updateRequestDto.getContent());
-        assertThat(responseDto.getOpenDate()).isEqualTo(updateRequestDto.getOpenDate());
-        assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
-        verify(capsuleRepository, times(1)).findById(capsuleId);
-        verify(capsuleRepository, times(1)).save(any(Capsule.class));
+            CapsuleResponseDto responseDto = capsuleService.updateCapsule(capsuleId, updateRequestDto);
+
+            assertThat(responseDto).isNotNull();
+            assertThat(responseDto.getTitle()).isEqualTo(updateRequestDto.getTitle());
+            assertThat(responseDto.getType()).isEqualTo(updateRequestDto.getType());
+            assertThat(responseDto.getContent()).isEqualTo(updateRequestDto.getContent());
+            assertThat(responseDto.getOpenDate()).isEqualTo(updateRequestDto.getOpenDate());
+            assertThat(responseDto.getUser().getEmail()).isEqualTo(testUser.getEmail());
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            verify(capsuleRepository, times(1)).save(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 업데이트 실패 - 캡슐을 찾을 수 없음")
     void updateCapsule_NotFound() {
-        Long nonExistentCapsuleId = 99L;
-        when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.updateCapsule(nonExistentCapsuleId, testRequestDto)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
-        verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
-        verify(capsuleRepository, never()).save(any(Capsule.class));
+            Long nonExistentCapsuleId = 99L;
+            when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.updateCapsule(nonExistentCapsuleId, testRequestDto)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
+            verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
+            verify(capsuleRepository, never()).save(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 업데이트 실패 - 권한 없음")
     void updateCapsule_Unauthorized() {
-        Long capsuleId = 1L;
-        User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
-        Capsule otherUserCapsule = Capsule.builder()
-                .title("다른 사용자 캡슐")
-                .type(CapsuleType.NORMAL)
-                .content("다른 사용자 내용")
-                .openDate(LocalDate.now().plusDays(10))
-                .user(otherUser) // user 필드도 빌더로 설정하는 것이 좋습니다.
-                .build();
-        otherUserCapsule.setId(1L); // <-- @Setter 덕분에 가능
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+            Long capsuleId = 1L;
+            User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
+            Capsule otherUserCapsule = Capsule.builder()
+                    .id(1L)
+                    .title("다른 사용자 캡슐")
+                    .type(CapsuleType.TIME)
+                    .content("다른 사용자 내용")
+                    .openDate(LocalDate.now().plusDays(10))
+                    .user(otherUser)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .medias(new ArrayList<>())
+                    .build();
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.updateCapsule(capsuleId, testRequestDto)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
-        verify(capsuleRepository, times(1)).findById(capsuleId);
-        verify(capsuleRepository, never()).save(any(Capsule.class));
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.updateCapsule(capsuleId, testRequestDto)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            verify(capsuleRepository, never()).save(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 삭제 성공")
     void deleteCapsule_Success() {
-        Long capsuleId = 1L;
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
-        doNothing().when(capsuleRepository).delete(any(Capsule.class));
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        capsuleService.deleteCapsule(capsuleId);
+            Long capsuleId = 1L;
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(testCapsule));
+            doNothing().when(capsuleRepository).delete(any(Capsule.class));
 
-        verify(capsuleRepository, times(1)).findById(capsuleId);
-        verify(capsuleRepository, times(1)).delete(testCapsule);
+            capsuleService.deleteCapsule(capsuleId);
+
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            verify(capsuleRepository, times(1)).delete(testCapsule);
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 삭제 실패 - 캡슐을 찾을 수 없음")
     void deleteCapsule_NotFound() {
-        Long nonExistentCapsuleId = 99L;
-        when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.deleteCapsule(nonExistentCapsuleId)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
-        verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
-        verify(capsuleRepository, never()).delete(any(Capsule.class));
+            Long nonExistentCapsuleId = 99L;
+            when(capsuleRepository.findById(nonExistentCapsuleId)).thenReturn(Optional.empty());
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.deleteCapsule(nonExistentCapsuleId)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.CAPSULE_NOT_FOUND);
+            verify(capsuleRepository, times(1)).findById(nonExistentCapsuleId);
+            verify(capsuleRepository, never()).delete(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
     }
 
     @Test
     @DisplayName("캡슐 삭제 실패 - 권한 없음")
     void deleteCapsule_Unauthorized() {
-        Long capsuleId = 1L;
-        User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
-        Capsule otherUserCapsule = Capsule.builder()
-                .title("다른 사용자 캡슐")
-                .type(CapsuleType.NORMAL)
-                .content("다른 사용자 내용")
-                .openDate(LocalDate.now().plusDays(10))
-                .user(otherUser) // user 필드도 빌더로 설정하는 것이 좋습니다.
-                .build();
-        otherUserCapsule.setId(1L); // <-- @Setter 덕분에 가능
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn(testUser.getEmail()); // SecurityUtil 정상 동작 Mocking
 
-        when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+            Long capsuleId = 1L;
+            User otherUser = User.builder().id(2L).email("other@example.com").username("otheruser").password("pass").build();
+            Capsule otherUserCapsule = Capsule.builder()
+                    .id(1L)
+                    .title("다른 사용자 캡슐")
+                    .type(CapsuleType.TIME)
+                    .content("다른 사용자 내용")
+                    .openDate(LocalDate.now().plusDays(10))
+                    .user(otherUser)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .medias(new ArrayList<>())
+                    .build();
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.deleteCapsule(capsuleId)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
-        verify(capsuleRepository, times(1)).findById(capsuleId);
-        verify(capsuleRepository, never()).delete(any(Capsule.class));
+            when(capsuleRepository.findById(capsuleId)).thenReturn(Optional.of(otherUserCapsule));
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.deleteCapsule(capsuleId)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+            verify(capsuleRepository, times(1)).findById(capsuleId);
+            verify(capsuleRepository, never()).delete(any(Capsule.class));
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+        }
+    }
+
+    // --- 새로 추가되거나 수정된 테스트 ---
+
+    @Test
+    @DisplayName("현재 사용자 정보 없을 시 RuntimeException 발생 - 캡슐 생성")
+    void createCapsule_SecurityUtilThrowsRuntimeException() {
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            // SecurityUtil.getCurrentUsername()이 RuntimeException을 던지도록 모킹
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenThrow(new RuntimeException("인증되지 않은 접근입니다.")); // 메시지 수정
+
+            // CapsuleService는 이 RuntimeException을 그대로 전파해야 함
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    capsuleService.createCapsule(testRequestDto)
+            );
+
+            assertThat(exception.getMessage()).isEqualTo("인증되지 않은 접근입니다."); // 메시지 수정
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(userRepository, never()).findByEmail(anyString()); // 예외 발생 시 호출되면 안 됨
+            verify(capsuleRepository, never()).save(any(Capsule.class)); // 예외 발생 시 호출되면 안 됨
+        }
     }
 
     @Test
-    @DisplayName("현재 사용자 가져오기 실패 - 인증되지 않은 접근")
-    void getCurrentUser_Unauthorized() {
-        when(securityContext.getAuthentication()).thenReturn(null);
+    @DisplayName("현재 사용자 정보 없을 시 RuntimeException 발생 - 캡슐 조회")
+    void getCapsule_SecurityUtilThrowsRuntimeException() {
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenThrow(new RuntimeException("인증되지 않은 접근입니다.")); // 메시지 수정
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.createCapsule(testRequestDto)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED);
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    capsuleService.getCapsule(1L)
+            );
+
+            assertThat(exception.getMessage()).isEqualTo("인증되지 않은 접근입니다."); // 메시지 수정
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(capsuleRepository, never()).findById(anyLong());
+        }
     }
 
     @Test
-    @DisplayName("현재 사용자 가져오기 실패 - 사용자를 찾을 수 없음")
+    @DisplayName("현재 사용자 정보 없을 시 RuntimeException 발생 - 모든 캡슐 조회")
+    void getAllCapsules_SecurityUtilThrowsRuntimeException() {
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenThrow(new RuntimeException("인증되지 않은 접근입니다.")); // 메시지 수정
+
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    capsuleService.getAllCapsules()
+            );
+
+            assertThat(exception.getMessage()).isEqualTo("인증되지 않은 접근입니다."); // 메시지 수정
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(userRepository, never()).findByEmail(anyString());
+            verify(capsuleRepository, never()).findByUser(any(User.class));
+        }
+    }
+
+    @Test
+    @DisplayName("현재 사용자 정보 없을 시 RuntimeException 발생 - 캡슐 업데이트")
+    void updateCapsule_SecurityUtilThrowsRuntimeException() {
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenThrow(new RuntimeException("인증되지 않은 접근입니다.")); // 메시지 수정
+
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    capsuleService.updateCapsule(1L, testRequestDto)
+            );
+
+            assertThat(exception.getMessage()).isEqualTo("인증되지 않은 접근입니다."); // 메시지 수정
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(capsuleRepository, never()).findById(anyLong());
+            verify(capsuleRepository, never()).save(any(Capsule.class));
+        }
+    }
+
+    @Test
+    @DisplayName("현재 사용자 정보 없을 시 RuntimeException 발생 - 캡슐 삭제")
+    void deleteCapsule_SecurityUtilThrowsRuntimeException() {
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenThrow(new RuntimeException("인증되지 않은 접근입니다.")); // 메시지 수정
+
+            RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                    capsuleService.deleteCapsule(1L)
+            );
+
+            assertThat(exception.getMessage()).isEqualTo("인증되지 않은 접근입니다."); // 메시지 수정
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(capsuleRepository, never()).findById(anyLong());
+            verify(capsuleRepository, never()).delete(any(Capsule.class));
+        }
+    }
+
+    @Test
+    @DisplayName("현재 사용자 가져오기 실패 - 사용자를 찾을 수 없음 (DB에 없음)")
     void getCurrentUser_UserNotFound() {
-        when(authentication.getName()).thenReturn("nonexistent@example.com");
-        when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+        try (MockedStatic<SecurityUtil> mockedSecurityUtil = mockStatic(SecurityUtil.class)) {
+            mockedSecurityUtil.when(SecurityUtil::getCurrentUsername)
+                    .thenReturn("nonexistent@example.com"); // 존재하지 않는 이메일 반환
 
-        CustomException exception = assertThrows(CustomException.class, () ->
-                capsuleService.createCapsule(testRequestDto)
-        );
-        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+            when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
+
+            CustomException exception = assertThrows(CustomException.class, () ->
+                    capsuleService.createCapsule(testRequestDto)
+            );
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+            mockedSecurityUtil.verify(SecurityUtil::getCurrentUsername, times(1));
+            verify(userRepository, times(1)).findByEmail("nonexistent@example.com");
+        }
     }
 }
